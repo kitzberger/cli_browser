@@ -90,7 +90,7 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         if (isset($GLOBALS['TCA'][$this->table]['ctrl']['type'])) {
             // Ask for type?!
             $typeField = $GLOBALS['TCA'][$this->table]['ctrl']['type'];
-            $type = 'xxx';
+            $type = null;
         }
 
         $labelField = $GLOBALS['TCA'][$this->table]['ctrl']['label'];
@@ -181,8 +181,10 @@ class RecordBrowserCommand extends AbstractBrowserCommand
             ];
 
             if ($typeField) {
-                $selectFields[] = $this->table . '.' . $typeField;
-                $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
+                $selectFields[] = 'r.' . $typeField;
+                if ($type) {
+                    $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
+                }
             }
 
             $records = $queryBuilder
@@ -199,7 +201,11 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 ->setMaxResults($this->limit)
                 ->execute()->fetchAll();
 
-            $output->writeln(sprintf('Listing %d records of %s of type %s', count($records), $this->table, $type));
+            if ($typeField && $type) {
+                $output->writeln(sprintf('Listing %d records of %s of type %s', count($records), $this->table, $type));
+            } else {
+                $output->writeln(sprintf('Listing %d records of %s', count($records), $this->table));
+            }
             $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
             $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
             if ($this->isWithRestriction('starttime') !== null) {
