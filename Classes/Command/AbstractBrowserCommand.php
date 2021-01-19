@@ -174,7 +174,7 @@ abstract class AbstractBrowserCommand extends Command
 
     protected function askForType($default = 'list')
     {
-        $typeFieldName = $this->getTypeFieldName($this->table);
+        $typeFieldName = $this->getTypeFieldName();
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
@@ -197,8 +197,8 @@ abstract class AbstractBrowserCommand extends Command
 
     protected function askForSubType($type = 'list')
     {
-        $typeFieldName = $this->getTypeFieldName($this->table);
-        $subTypeFieldName = $this->getSubTypeFieldName($this->table, $type);
+        $typeFieldName = $this->getTypeFieldName();
+        $subTypeFieldName = $this->getSubTypeFieldName($type);
 
         $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($this->table);
         $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
