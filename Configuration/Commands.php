@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'database:browse-content' => [
+    'database:browse-contents' => [
         'class' => \Kitzberger\CliBrowser\Command\CeBrowserCommand::class
     ],
     'database:browse-records' => [
