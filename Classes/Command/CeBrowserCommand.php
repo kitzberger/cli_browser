@@ -1,7 +1,6 @@
 <?php
 namespace Kitzberger\CliBrowser\Command;
 
-use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
@@ -11,16 +10,20 @@ use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Helper\Table;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\EndTimeRestriction;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
-class CeBrowserCommand extends Command
+class CeBrowserCommand extends AbstractBrowserCommand
 {
 	/**
 	 * @var SymfonyStyle
@@ -54,6 +57,8 @@ class CeBrowserCommand extends Command
             'What list_type are you looking for?',
             null
         );
+
+        parent::configure();
 	}
 
 	/**
@@ -64,13 +69,9 @@ class CeBrowserCommand extends Command
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
-		if ($output->isVerbose()) {
-			$this->io = new SymfonyStyle($input, $output);
-			$this->io->title($this->getDescription());
-		}
+        parent::execute($input, $output);
 
-		$this->conf = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['cli_browser'];
-
+        $this->table = 'tt_content';
 
         // ************************
         // 1. Determine parameters
@@ -78,38 +79,34 @@ class CeBrowserCommand extends Command
         $CType = $input->getOption('CType');
         $list_type = $input->getOption('list_type');
 
-        $helper = $this->getHelper('question');
-
         if (empty($CType)) {
-            $question = new Question('CType? (list) ', 'list');
-            $CType = $helper->ask($input, $output, $question);
+            $CType = $this->askForType('list');
         }
 
         if ($CType === 'list' && empty($list_type)) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tt_content');
-            $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-            $list_types = $queryBuilder
-                ->select('list_type')
-                ->addSelectLiteral('COUNT(list_type) AS count')
-                ->from('tt_content')
-                ->where($queryBuilder->expr()->eq('CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR)))
-                ->orderBy('list_type')
-                ->groupBy('list_type')
-                ->execute()->fetchAll();
-
-            $question = new ChoiceQuestion(
-                'list_type?',
-                array_column($list_types, 'list_type'),
-                0
-            );
-            $list_type = $helper->ask($input, $output, $question);
+            $list_type = $this->askForSubType('list');
         }
 
         // ************************
         // 2. Count elements
         // ************************
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tt_content');
-        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $queryBuilder = $this->getQueryBuilder();
+
+        $restrictions = $queryBuilder->getRestrictions()->removeAll();
+        if ($this->isWithRestriction('deleted')) {
+            $restrictions->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        }
+        if ($this->isWithRestriction('disabled')) {
+            $restrictions->add(GeneralUtility::makeInstance(HiddenRestriction::class));
+        }
+        if ($this->isWithRestriction('starttime')) {
+            $restrictions->add(GeneralUtility::makeInstance(StartTimeRestriction::class));
+        }
+        if ($this->isWithRestriction('endtime')) {
+            $restrictions->add(GeneralUtility::makeInstance(EndTimeRestriction::class));
+        }
+        $queryBuilder->setRestrictions($restrictions);
+
         $constraints = [
             $queryBuilder->expr()->eq('CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR))
         ];
@@ -118,7 +115,7 @@ class CeBrowserCommand extends Command
         }
         $total = $queryBuilder
             ->count('uid')
-            ->from('tt_content')
+            ->from($this->table)
             ->where(...$constraints)
             ->execute()->fetchColumn(0);
 
@@ -131,24 +128,35 @@ class CeBrowserCommand extends Command
         // ************************
         // 3. List elements
         // ************************
+
+        $selectFields = [
+            'c.uid',
+            'c.pid',
+            'c.list_type',
+        ];
+
+        if ($this->isWithRestriction('deleted') === false) {
+            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
+        }
+        if ($this->isWithRestriction('disabled') === false) {
+            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'];
+        }
+        if ($this->isWithRestriction('starttime') === false) {
+            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime'];
+        }
+        if ($this->isWithRestriction('endtime') === false) {
+            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime'];
+        }
+
         if ($list_type) {
-            $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
-            $cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
-
             do {
-                $limit = 5;
-
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('tt_content');
-
-                // todo: add parameter to toggle this here
-                if (0) {
-                    $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
-                }
+                $queryBuilder = $this->getQueryBuilder();
+                $queryBuilder->setRestrictions($restrictions);
 
                 $plugins = $queryBuilder
-                    ->select('c.uid', 'c.pid', 'c.list_type')
+                    ->select(...$selectFields)
                     ->addSelectLiteral('ExtractValue(`c`.`pi_flexform`, \'//T3FlexForms/data/sheet/language/field[@index="switchableControllerActions"]/value\') AS switchableControllerActions')
-                    ->from('tt_content', 'c')
+                    ->from($this->table, 'c')
                     ->join(
                         'c',
                         'pages',
@@ -159,23 +167,41 @@ class CeBrowserCommand extends Command
                         $queryBuilder->expr()->eq('c.CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR)),
                         $queryBuilder->expr()->eq('c.list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR))
                     )
-                    ->setMaxResults($limit)
+                    ->setMaxResults($this->limit)
                     ->execute()->fetchAll();
 
                 $output->writeln(sprintf('Listing %d items of list_type %s', count($plugins), $list_type));
+                $output->writeln(sprintf('- %scluding deleted',  $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding future',   $this->isWithRestriction('starttime') ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding past',     $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
 
-                foreach ($plugins as &$plugin) {
-                    $site = $siteFinder->getSiteByPageId($plugin['pid']);
-                    $plugin['site'] = $site->getIdentifier();
-                    $plugin['url'] = $cObj->typolink_URL(array('parameter' => $plugin['pid']));
+                $output->writeln('');
+
+                if (count($plugins)) {
+                    // Enhance results
+                    foreach ($plugins as &$plugin) {
+                        $site = $this->siteFinder->getSiteByPageId($plugin['pid']);
+                        $plugin['site'] = $site->getIdentifier();
+                        $plugin['url'] = $this->cObj->typolink_URL(array('parameter' => $plugin['pid']));
+                        $plugin['switchableControllerActions'] = str_replace('&gt;', '>', $plugin['switchableControllerActions']);
+                        if (isset($plugin['starttime'])) {
+                            $plugin['starttime'] = $plugin['starttime'] ? date('Y-m-d H:i', $plugin['starttime']) : '';
+                        }
+                        if (isset($plugin['endtime'])) {
+                            $plugin['endtime'] = $plugin['endtime'] ? date('Y-m-d H:i', $plugin['endtime']) : '';
+                        }
+                    }
+
+                    $tableOutput = new Table($output);
+                    $tableOutput
+                        ->setHeaders(array_keys($plugins[0]))
+                        ->setRows($plugins);
+                    ;
+                    $tableOutput->render();
+                } else {
+                    $this->io->writeln('<warning>No records found ;-(</>');
                 }
-
-                $table = new Table($output);
-                $table
-                    ->setHeaders(array_keys($plugins[0]))
-                    ->setRows($plugins);
-                ;
-                $table->render();
 
                 // $question = new ConfirmationQuestion(
                 //     'Continue with this action? (Y/n) ',
@@ -183,9 +209,9 @@ class CeBrowserCommand extends Command
                 //     '/^(y|j)/i'
                 // );
 
-            } while (0 && $helper->ask($input, $output, $question));
+            } while (0 && $this->helper->ask($input, $output, $question));
         } else {
-            // not implemente yet
+            // not implemented yet
         }
 
         // $sites = $siteFinder->getAllSites();
@@ -210,22 +236,4 @@ class CeBrowserCommand extends Command
         //     $table->render();
         // }
 	}
-
-    private function initializeTypoScriptFrontend($pageId)
-    {
-        if (isset($GLOBALS['TSFE']) && is_object($GLOBALS['TFSE'])) {
-            return;
-        }
-
-        $GLOBALS['TSFE'] = $this->objectManager->get(TypoScriptFrontendController::class, $GLOBALS['TYPO3_CONF_VARS'], $pageId, '');
-        $GLOBALS['TSFE']->sys_page = $this->objectManager->get(PageRepository::class);
-        $GLOBALS['TSFE']->sys_page->init(false);
-        $GLOBALS['TSFE']->tmpl = $this->objectManager->get(TemplateService::class);
-        $GLOBALS['TSFE']->tmpl->init();
-        $GLOBALS['TSFE']->connectToDB();
-        $GLOBALS['TSFE']->initFEuser();
-        $GLOBALS['TSFE']->determineId();
-        $GLOBALS['TSFE']->initTemplate();
-        $GLOBALS['TSFE']->getConfigArray();
-    }
 }

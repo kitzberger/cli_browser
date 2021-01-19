@@ -1,7 +1,6 @@
 <?php
 namespace Kitzberger\CliBrowser\Command;
 
-use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
@@ -17,10 +16,13 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Log\LogLevel;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\DeletedRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\StartTimeRestriction;
+use TYPO3\CMS\Core\Database\Query\Restriction\EndTimeRestriction;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
-class RecordBrowserCommand extends Command
+class RecordBrowserCommand extends AbstractBrowserCommand
 {
 	/**
 	 * @var SymfonyStyle
@@ -54,6 +56,8 @@ class RecordBrowserCommand extends Command
             'What type are you looking for?',
             null
         );
+
+        parent::configure();
 	}
 
 	/**
@@ -64,23 +68,15 @@ class RecordBrowserCommand extends Command
 	 */
 	protected function execute(InputInterface $input, OutputInterface $output)
 	{
-		if ($output->isVerbose()) {
-			$this->io = new SymfonyStyle($input, $output);
-			$this->io->title($this->getDescription());
-		}
-
-		$this->conf = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['cli_browser'];
-
+        parent::execute($input, $output);
 
         // ************************
         // 1. Determine parameters
         // ************************
-        $table = $input->getOption('table');
-        $type = $input->getOption('type');
+        $this->table = $input->getOption('table');
+        $type        = $input->getOption('type');
 
-        $helper = $this->getHelper('question');
-
-        if (empty($table)) {
+        if (empty($this->table)) {
             $tables = $GLOBALS['TCA'];
 
             $question = new ChoiceQuestion(
@@ -88,24 +84,38 @@ class RecordBrowserCommand extends Command
                 array_keys($tables),
                 0
             );
-            $table = $helper->ask($input, $output, $question);
+            $this->table = $this->ask($question);
         }
 
-        if (isset($GLOBALS['TCA'][$table]['ctrl']['type'])) {
+        if (isset($GLOBALS['TCA'][$this->table]['ctrl']['type'])) {
             // Ask for type?!
-            $typeField = $GLOBALS['TCA'][$table]['ctrl']['type'];
+            $typeField = $GLOBALS['TCA'][$this->table]['ctrl']['type'];
             $type = 'xxx';
         }
 
-        $labelField = $GLOBALS['TCA'][$table]['ctrl']['label'];
-        $createField = $GLOBALS['TCA'][$table]['ctrl']['crdate'];
-        $tstampField = $GLOBALS['TCA'][$table]['ctrl']['tstamp'];
+        $labelField = $GLOBALS['TCA'][$this->table]['ctrl']['label'];
+        $createField = $GLOBALS['TCA'][$this->table]['ctrl']['crdate'];
+        $tstampField = $GLOBALS['TCA'][$this->table]['ctrl']['tstamp'];
+        $enablecolumns = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns'];
 
         // ************************
         // 2. Count elements
         // ************************
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
-        $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $queryBuilder = $this->getQueryBuilder();
+        $restrictions = $queryBuilder->getRestrictions()->removeAll();
+        if ($withoutDeleted === true) {
+            $restrictions->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        }
+        if ($withoutHidden === true) {
+            $restrictions->add(GeneralUtility::makeInstance(HiddenRestriction::class));
+        }
+        if ($withoutFuture === true) {
+            $restrictions->add(GeneralUtility::makeInstance(StartTimeRestriction::class));
+        }
+        if ($withoutPast === true) {
+            $restrictions->add(GeneralUtility::makeInstance(EndTimeRestriction::class));
+        }
+
         $constraints = [
             $queryBuilder->expr()->gt('pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
         ];
@@ -114,136 +124,122 @@ class RecordBrowserCommand extends Command
         }
         $total = $queryBuilder
             ->count('uid')
-            ->from($table)
+            ->from($this->table)
             ->where(...$constraints)
             ->execute()->fetchColumn(0);
 
+        $message = PHP_EOL;
         if ($typeField && $type) {
-            $output->writeln(PHP_EOL . sprintf('It\'s a total of %s available %s records of type %s', $total, $table, $type) . PHP_EOL);
+            $message = sprintf('It\'s a total of %s available %s records of type %s', $total, $this->table, $type) . PHP_EOL;
         } else {
-            $output->writeln(PHP_EOL . sprintf('It\'s a total of %s available %s records', $total, $table) . PHP_EOL);
+            $message = sprintf('It\'s a total of %s available %s records', $total, $this->table) . PHP_EOL;
         }
+        if ($withoutDeleted === false) {
+            $message .= '- with deleted' . PHP_EOL;
+        }
+        if ($withoutHidden === false && isset($enablecolumns['disabled'])) {
+            $message .= '- with hidden' . PHP_EOL;
+        }
+        if ($withoutFuture === false && isset($enablecolumns['starttime'])) {
+            $message .= '- with future' . PHP_EOL;
+        }
+        if ($withoutPast === false && isset($enablecolumns['endtime'])) {
+            $message .= '- with past' . PHP_EOL;
+        }
+        $output->writeln($message);
 
         // ************************
         // 3. List elements
         // ************************
-        if ($table) {
-            $siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
-            $cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
 
-            do {
-                $limit = 5;
+        $selectFields = [
+            'r.uid',
+            'r.pid',
+            'r.' . $labelField,
+            'r.' . $tstampField,
+        ];
 
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable($table);
+        if ($this->isWithRestriction('deleted') === false) {
+            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
+        }
+        if ($this->isWithRestriction('disabled') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled']) {
+            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'];
+        }
+        if ($this->isWithRestriction('starttime') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime']) {
+            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime'];
+        }
+        if ($this->isWithRestriction('endtime') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime']) {
+            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime'];
+        }
 
-                // todo: add parameter to toggle this here
-                if (0) {
-                    $queryBuilder->getRestrictions()->removeAll()->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        do {
+            $queryBuilder = $this->getQueryBuilder();
+            $queryBuilder->setRestrictions($restrictions);
+
+            $constraints = [
+                $queryBuilder->expr()->gt('r.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
+            ];
+
+            if ($typeField) {
+                $selectFields[] = $this->table . '.' . $typeField;
+                $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
+            }
+
+            $records = $queryBuilder
+                ->select(...$selectFields)
+                ->from($this->table, 'r')
+                ->join(
+                    'r',
+                    'pages',
+                    'p',
+                    $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('r.pid'))
+                )
+                ->where(...$constraints)
+                ->orderBy('r.' . $tstampField, 'DESC')
+                ->setMaxResults($this->limit)
+                ->execute()->fetchAll();
+
+            $output->writeln(sprintf('Listing %d records of %s of type %s', count($records), $this->table, $type));
+            $output->writeln(sprintf('- %scluding deleted',  $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
+            $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
+            if ($this->isWithRestriction('starttime') !== null) {
+                $output->writeln(sprintf('- %scluding future',   $this->isWithRestriction('starttime') ? 'ex' : 'in'));
+            }
+            if ($this->isWithRestriction('endtime') !== null) {
+                $output->writeln(sprintf('- %scluding past',     $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
+            }
+            $output->writeln('');
+
+            if (count($records)) {
+                // Enhance results
+                foreach ($records as &$record) {
+                    if ($record[$tstampField]) {
+                        $record[$tstampField] = date('Y-m-d H:i', $record[$tstampField]);
+                    }
+                    if (isset($record['starttime'])) {
+                        $record['starttime'] = $record['starttime'] ? date('Y-m-d H:i', $record['starttime']) : '';
+                    }
+                    if (isset($record['endtime'])) {
+                        $record['endtime'] = $record['endtime'] ? date('Y-m-d H:i', $record['endtime']) : '';
+                    }
                 }
 
-                $fields = [
-                    'r.uid',
-                    'r.pid',
-                    'r.' . $labelField,
-                    'r.' . $tstampField,
-                ];
-
-                $constraints = [
-                    $queryBuilder->expr()->gt('r.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
-                ];
-
-                if ($typeField) {
-                    $fields[] = $table . '.' . $typeField;
-                    $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
-                }
-
-                $records = $queryBuilder
-                    ->select(...$fields)
-                    ->from($table, 'r')
-                    ->join(
-                        'r',
-                        'pages',
-                        'p',
-                        $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('r.pid'))
-                    )
-                    ->where(...$constraints)
-                    ->orderBy('r.' . $tstampField, 'DESC')
-                    ->setMaxResults($limit)
-                    ->execute()->fetchAll();
-
-                $output->writeln(sprintf('Listing %d records of %s of type %s', count($records), $table, $type));
-
-                // foreach ($records as &$plugin) {
-                //     $site = $siteFinder->getSiteByPageId($plugin['pid']);
-                //     $plugin['site'] = $site->getIdentifier();
-                //     $plugin['url'] = $cObj->typolink_URL(array('parameter' => $plugin['pid']));
-                // }
-
-                $table = new Table($output);
-                $table
+                $tableOutput = new Table($output);
+                $tableOutput
                     ->setHeaders(array_keys($records[0]))
-                    ->setRows(
-                        array_map(
-                            function($record) use ($tstampField) {
-                                if ($record[$tstampField]) {
-                                    $record[$tstampField] = date('Y-m-d H:i', $record[$tstampField]);
-                                }
-                                return $record;
-                            },
-                            $records)
-                    );
+                    ->setRows($records);
                 ;
-                $table->render();
+                $tableOutput->render();
+            } else {
+                $this->io->writeln('<warning>No records found ;-(</>');
+            }
 
-                $question = new ConfirmationQuestion(
-                    'Continue with this action? (Y/n) ',
-                    true,
-                    '/^(y|j)/i'
-                );
+            // $question = new ConfirmationQuestion(
+            //     'Continue with this action? (Y/n) ',
+            //     true,
+            //     '/^(y|j)/i'
+            // );
 
-            } while (0 && $helper->ask($input, $output, $question));
-        } else {
-            // not implemente yet
-        }
-
-        // $sites = $siteFinder->getAllSites();
-        // if (count($sites) > 1) {
-        //     $output->writeln('There\'s more than one site. Please select one!');
-        //     $table = new Table($output);
-        //     $table
-        //         ->setHeaders(['identifier', 'base', 'rootPid'])
-        //         ->setRows(
-        //             array_map(
-        //                 function($site) {
-        //                     return [
-        //                         $site->getIdentifier(),
-        //                         $site->getBase(),
-        //                         $site->getRootPageId(),
-        //                     ];
-        //                 },
-        //                 $sites
-        //             )
-        //         );
-        //     ;
-        //     $table->render();
-        // }
+        } while (0 && $helper->ask($input, $output, $question));
 	}
-
-    private function initializeTypoScriptFrontend($pageId)
-    {
-        if (isset($GLOBALS['TSFE']) && is_object($GLOBALS['TFSE'])) {
-            return;
-        }
-
-        $GLOBALS['TSFE'] = $this->objectManager->get(TypoScriptFrontendController::class, $GLOBALS['TYPO3_CONF_VARS'], $pageId, '');
-        $GLOBALS['TSFE']->sys_page = $this->objectManager->get(PageRepository::class);
-        $GLOBALS['TSFE']->sys_page->init(false);
-        $GLOBALS['TSFE']->tmpl = $this->objectManager->get(TemplateService::class);
-        $GLOBALS['TSFE']->tmpl->init();
-        $GLOBALS['TSFE']->connectToDB();
-        $GLOBALS['TSFE']->initFEuser();
-        $GLOBALS['TSFE']->determineId();
-        $GLOBALS['TSFE']->initTemplate();
-        $GLOBALS['TSFE']->getConfigArray();
-    }
 }
