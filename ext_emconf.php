@@ -1,7 +1,7 @@
 <?php
 $EM_CONF[$_EXTKEY] = array(
     'title' => 'CLI browser',
-    'description' => 'Browse for CTypes, list_types via CLI',
+    'description' => 'Browse for content elements and other records via CLI',
     'category' => 'misc',
     'shy' => 0,
     'version' => '1.0.0',

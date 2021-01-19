@@ -1,7 +1,7 @@
 {
 	"name": "kitzberger/cli-browser",
 	"type": "typo3-cms-extension",
-	"description": "",
+	"description": "Browse for content elements and other records via CLI",
 	"homepage": "https://github.com/kitzberger/cli_browser",
 	"license": ["GPL-2.0+"],
 	"keywords": ["TYPO3 CMS"],
