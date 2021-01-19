@@ -26,10 +26,10 @@ use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 abstract class AbstractBrowserCommand extends Command
 {
-	/**
-	 * @var SymfonyStyle
-	 */
-	protected $io = null;
+    /**
+     * @var SymfonyStyle
+     */
+    protected $io = null;
 
     /**
      * @var InputInterface
@@ -56,10 +56,10 @@ abstract class AbstractBrowserCommand extends Command
      */
     protected $cObj = null;
 
-	/**
-	 * @var []
-	 */
-	protected $conf = null;
+    /**
+     * @var []
+     */
+    protected $conf = null;
 
     /**
      * @var string
@@ -76,11 +76,11 @@ abstract class AbstractBrowserCommand extends Command
      */
     protected $limit = null;
 
-	/**
-	 * Configure the command by defining the name
-	 */
-	protected function configure()
-	{
+    /**
+     * Configure the command by defining the name
+     */
+    protected function configure()
+    {
         $this->addOption(
             'with-deleted',
             null,
@@ -116,25 +116,25 @@ abstract class AbstractBrowserCommand extends Command
             'How many records?',
             5
         );
-	}
+    }
 
-	/**
-	 * Executes the command
-	 *
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
-	{
-		$this->io = new SymfonyStyle($input, $output);
-		if ($output->isVerbose()) {
-			$this->io->title($this->getDescription());
-		}
+    /**
+     * Executes the command
+     *
+     * @param InputInterface $input
+     * @param OutputInterface $output
+     */
+    protected function execute(InputInterface $input, OutputInterface $output)
+    {
+        $this->io = new SymfonyStyle($input, $output);
+        if ($output->isVerbose()) {
+            $this->io->title($this->getDescription());
+        }
 
         $this->input = $input;
         $this->output = $output;
 
-		$this->conf = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['cli_browser'];
+        $this->conf = $GLOBALS['TYPO3_CONF_VARS']['EXTENSIONS']['cli_browser'];
         $this->helper = $this->getHelper('question');
 
         $this->siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
@@ -146,7 +146,7 @@ abstract class AbstractBrowserCommand extends Command
         $this->restrictions['endtime']   = $input->getOption('without-past');
 
         $this->limit = (int)$input->getOption('limit');
-	}
+    }
 
     protected function ask($question)
     {

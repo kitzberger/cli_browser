@@ -24,30 +24,30 @@ use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 class RecordBrowserCommand extends AbstractBrowserCommand
 {
-	/**
-	 * @var SymfonyStyle
-	 */
-	protected $io = null;
+    /**
+     * @var SymfonyStyle
+     */
+    protected $io = null;
 
-	/**
-	 * @var []
-	 */
-	protected $conf = null;
+    /**
+     * @var []
+     */
+    protected $conf = null;
 
-	/**
-	 * Configure the command by defining the name
-	 */
-	protected function configure()
-	{
-		$this->setDescription('CLI browser to find records!');
+    /**
+     * Configure the command by defining the name
+     */
+    protected function configure()
+    {
+        $this->setDescription('CLI browser to find records!');
 
-		$this->addOption(
-			'table',
-			null,
-			InputOption::VALUE_REQUIRED,
-			'What table are you looking for?',
-			null
-		);
+        $this->addOption(
+            'table',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'What table are you looking for?',
+            null
+        );
 
         $this->addOption(
             'type',
@@ -58,16 +58,16 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         );
 
         parent::configure();
-	}
+    }
 
-	/**
-	 * Executes the command
-	 *
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
-	{
+    /**
+     * Executes the command
+     *
+     * @param InputInterface $input
+     * @param OutputInterface $output
+     */
+    protected function execute(InputInterface $input, OutputInterface $output)
+    {
         parent::execute($input, $output);
 
         // ************************
@@ -120,7 +120,7 @@ class RecordBrowserCommand extends AbstractBrowserCommand
             $queryBuilder->expr()->gt('pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
         ];
         if ($typeField && $type) {
-        #    $constraints[] = $queryBuilder->expr()->eq($typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
+            #    $constraints[] = $queryBuilder->expr()->eq($typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
         }
         $total = $queryBuilder
             ->count('uid')
@@ -200,13 +200,13 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 ->execute()->fetchAll();
 
             $output->writeln(sprintf('Listing %d records of %s of type %s', count($records), $this->table, $type));
-            $output->writeln(sprintf('- %scluding deleted',  $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
+            $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
             $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
             if ($this->isWithRestriction('starttime') !== null) {
-                $output->writeln(sprintf('- %scluding future',   $this->isWithRestriction('starttime') ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
             }
             if ($this->isWithRestriction('endtime') !== null) {
-                $output->writeln(sprintf('- %scluding past',     $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding past', $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
             }
             $output->writeln('');
 
@@ -239,7 +239,6 @@ class RecordBrowserCommand extends AbstractBrowserCommand
             //     true,
             //     '/^(y|j)/i'
             // );
-
         } while (0 && $helper->ask($input, $output, $question));
-	}
+    }
 }

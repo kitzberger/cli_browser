@@ -25,30 +25,30 @@ use TYPO3\CMS\Frontend\ContentObject\ContentObjectRenderer;
 
 class CeBrowserCommand extends AbstractBrowserCommand
 {
-	/**
-	 * @var SymfonyStyle
-	 */
-	protected $io = null;
+    /**
+     * @var SymfonyStyle
+     */
+    protected $io = null;
 
-	/**
-	 * @var []
-	 */
-	protected $conf = null;
+    /**
+     * @var []
+     */
+    protected $conf = null;
 
-	/**
-	 * Configure the command by defining the name
-	 */
-	protected function configure()
-	{
-		$this->setDescription('CLI browser to find content elements!');
+    /**
+     * Configure the command by defining the name
+     */
+    protected function configure()
+    {
+        $this->setDescription('CLI browser to find content elements!');
 
-		$this->addOption(
-			'CType',
-			null,
-			InputOption::VALUE_REQUIRED,
-			'What CType are you looking for?',
-			null
-		);
+        $this->addOption(
+            'CType',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'What CType are you looking for?',
+            null
+        );
 
         $this->addOption(
             'list_type',
@@ -59,16 +59,16 @@ class CeBrowserCommand extends AbstractBrowserCommand
         );
 
         parent::configure();
-	}
+    }
 
-	/**
-	 * Executes the command
-	 *
-	 * @param InputInterface $input
-	 * @param OutputInterface $output
-	 */
-	protected function execute(InputInterface $input, OutputInterface $output)
-	{
+    /**
+     * Executes the command
+     *
+     * @param InputInterface $input
+     * @param OutputInterface $output
+     */
+    protected function execute(InputInterface $input, OutputInterface $output)
+    {
         parent::execute($input, $output);
 
         $this->table = 'tt_content';
@@ -171,10 +171,10 @@ class CeBrowserCommand extends AbstractBrowserCommand
                     ->execute()->fetchAll();
 
                 $output->writeln(sprintf('Listing %d items of list_type %s', count($plugins), $list_type));
-                $output->writeln(sprintf('- %scluding deleted',  $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
                 $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
-                $output->writeln(sprintf('- %scluding future',   $this->isWithRestriction('starttime') ? 'ex' : 'in'));
-                $output->writeln(sprintf('- %scluding past',     $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
+                $output->writeln(sprintf('- %scluding past', $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
 
                 $output->writeln('');
 
@@ -208,7 +208,6 @@ class CeBrowserCommand extends AbstractBrowserCommand
                 //     true,
                 //     '/^(y|j)/i'
                 // );
-
             } while (0 && $this->helper->ask($input, $output, $question));
         } else {
             // not implemented yet
@@ -235,5 +234,5 @@ class CeBrowserCommand extends AbstractBrowserCommand
         //     ;
         //     $table->render();
         // }
-	}
+    }
 }
