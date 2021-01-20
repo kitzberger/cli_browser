@@ -90,9 +90,12 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         }
 
         if (isset($GLOBALS['TCA'][$this->table]['ctrl']['type'])) {
-            // Ask for type?!
             $typeField = $GLOBALS['TCA'][$this->table]['ctrl']['type'];
-            $type = null;
+            if (is_null($type)) {
+                $type = $this->askForType(null);
+            }
+        } else {
+            $typeField = null;
         }
 
         $labelField = $GLOBALS['TCA'][$this->table]['ctrl']['label'];
@@ -121,8 +124,8 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         $constraints = [
             $queryBuilder->expr()->gt('pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
         ];
-        if ($typeField && $type) {
-            #    $constraints[] = $queryBuilder->expr()->eq($typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
+        if ($typeField && !is_null($type)) {
+            $constraints[] = $queryBuilder->expr()->eq($typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
         }
         $total = $queryBuilder
             ->count('uid')
@@ -131,7 +134,7 @@ class RecordBrowserCommand extends AbstractBrowserCommand
             ->execute()->fetchColumn(0);
 
         $message = PHP_EOL;
-        if ($typeField && $type) {
+        if ($typeField && !is_null($type)) {
             $message = sprintf('It\'s a total of %s available %s records of type %s', $total, $this->table, $type) . PHP_EOL;
         } else {
             $message = sprintf('It\'s a total of %s available %s records', $total, $this->table) . PHP_EOL;
@@ -154,25 +157,32 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         // 3. List elements
         // ************************
 
-        $selectFields = [
-            'r.uid',
-            'r.pid',
-            'r.' . $labelField,
-            'r.' . $tstampField,
-        ];
+        if (empty($this->selectFields)) {
+            $this->selectFields = [
+                'uid',
+                'pid',
+            ];
+            if ($typeField && is_null($type)) {
+                $this->selectFields[] = $typeField;
+            }
+            $this->selectFields[] = $labelField;
+            $this->selectFields[] = $tstampField;
+            if ($this->isWithRestriction('deleted') === false) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
+            }
+            if ($this->isWithRestriction('disabled') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled']) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'];
+            }
+            if ($this->isWithRestriction('starttime') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime']) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime'];
+            }
+            if ($this->isWithRestriction('endtime') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime']) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime'];
+            }
+        }
 
-        if ($this->isWithRestriction('deleted') === false) {
-            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
-        }
-        if ($this->isWithRestriction('disabled') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled']) {
-            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'];
-        }
-        if ($this->isWithRestriction('starttime') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime']) {
-            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime'];
-        }
-        if ($this->isWithRestriction('endtime') === false && $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime']) {
-            $selectFields[] = 'r.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime'];
-        }
+        // Prefix each column with 'r.'
+        $this->selectFields = preg_filter('/^/', 'r.', $this->selectFields);
 
         do {
             $queryBuilder = $this->getQueryBuilder();
@@ -182,15 +192,12 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 $queryBuilder->expr()->gt('r.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
             ];
 
-            if ($typeField) {
-                $selectFields[] = 'r.' . $typeField;
-                if ($type) {
-                    $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
-                }
+            if ($typeField && $type) {
+                $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
             }
 
             $records = $queryBuilder
-                ->select(...$selectFields)
+                ->select(...$this->selectFields)
                 ->from($this->table, 'r')
                 ->join(
                     'r',

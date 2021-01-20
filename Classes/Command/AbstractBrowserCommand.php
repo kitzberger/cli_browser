@@ -212,13 +212,21 @@ abstract class AbstractBrowserCommand extends Command
             ->groupBy($typeFieldName)
             ->execute()->fetchAll();
 
+        $types = array_column($types, $typeFieldName);
+        $types[] = '[all]';
+
         $question = new ChoiceQuestion(
-            $typeFieldName . '? (' . $default . ')',
-            array_column($types, $typeFieldName),
-            $default
+            $typeFieldName . '? (' . ($default ?? 'all'). ')',
+            $types,
+            $default ?? '[all]'
         );
 
-        return $this->helper->ask($this->input, $this->output, $question);
+        $answer = $this->helper->ask($this->input, $this->output, $question);
+        if ($answer === '[all]') {
+            return null;
+        } else {
+            return $answer;
+        }
     }
 
     protected function askForSubType($type = 'list')

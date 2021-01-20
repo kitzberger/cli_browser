@@ -82,7 +82,7 @@ class CeBrowserCommand extends AbstractBrowserCommand
         $list_type = $input->getOption('list_type');
 
         if (empty($CType)) {
-            $CType = $this->askForType('list');
+            $CType = $this->askForType(null);
         }
 
         if ($CType === 'list' && empty($list_type)) {
@@ -110,8 +110,11 @@ class CeBrowserCommand extends AbstractBrowserCommand
         $queryBuilder->setRestrictions($restrictions);
 
         $constraints = [
-            $queryBuilder->expr()->eq('CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR))
+            $queryBuilder->expr()->gt('pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
         ];
+        if ($CType) {
+            $constraints[] = $queryBuilder->expr()->eq('CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR));
+        }
         if ($list_type) {
             $constraints[] = $queryBuilder->expr()->eq('list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR));
         }
@@ -131,89 +134,109 @@ class CeBrowserCommand extends AbstractBrowserCommand
         // 3. List elements
         // ************************
 
-        $selectFields = [
-            'c.uid',
-            'c.pid',
-            'c.list_type',
-        ];
-
-        if ($this->isWithRestriction('deleted') === false) {
-            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
+        if (empty($this->selectFields)) {
+            $this->selectFields = [
+                'uid',
+                'pid',
+            ];
+            if (is_null($CType)) {
+                $this->selectFields[] = 'CType';
+            }
+            if ($CType === 'list' && empty($list_type)) {
+                $this->selectFields[] = 'list_type';
+            }
+            if ($this->isWithRestriction('deleted') === false) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
+            }
+            if ($this->isWithRestriction('disabled') === false) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'];
+            }
+            if ($this->isWithRestriction('starttime') === false) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime'];
+            }
+            if ($this->isWithRestriction('endtime') === false) {
+                $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime'];
+            }
         }
-        if ($this->isWithRestriction('disabled') === false) {
-            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['disabled'];
+
+        // Prefix each column with 'c.'
+        $this->selectFields = preg_filter('/^/', 'c.', $this->selectFields);
+
+        $selectFieldsLiteral = [];
+        if ($CType === 'list') {
+            $selectFieldsLiteral['switchableControllerActions'] = 'ExtractValue(`c`.`pi_flexform`, \'//T3FlexForms/data/sheet/language/field[@index="switchableControllerActions"]/value\') AS switchableControllerActions';
         }
-        if ($this->isWithRestriction('starttime') === false) {
-            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['starttime'];
-        }
-        if ($this->isWithRestriction('endtime') === false) {
-            $selectFields[] = 'c.' . $GLOBALS['TCA'][$this->table]['ctrl']['enablecolumns']['endtime'];
-        }
 
-        if ($list_type) {
-            do {
-                $queryBuilder = $this->getQueryBuilder();
-                $queryBuilder->setRestrictions($restrictions);
+        do {
+            $queryBuilder = $this->getQueryBuilder();
+            $queryBuilder->setRestrictions($restrictions);
 
-                $plugins = $queryBuilder
-                    ->select(...$selectFields)
-                    ->addSelectLiteral('ExtractValue(`c`.`pi_flexform`, \'//T3FlexForms/data/sheet/language/field[@index="switchableControllerActions"]/value\') AS switchableControllerActions')
-                    ->from($this->table, 'c')
-                    ->join(
-                        'c',
-                        'pages',
-                        'p',
-                        $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('c.pid'))
-                    )
-                    ->where(
-                        $queryBuilder->expr()->eq('c.CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR)),
-                        $queryBuilder->expr()->eq('c.list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR))
-                    )
-                    ->setMaxResults($this->limit)
-                    ->execute()->fetchAll();
+            $constraints = [
+                $queryBuilder->expr()->gt('c.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
+            ];
 
-                $output->writeln(sprintf('Listing %d items of list_type %s', count($plugins), $list_type));
-                $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
-                $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
-                $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
-                $output->writeln(sprintf('- %scluding past', $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
+            if ($CType) {
+                $constraints[] = $queryBuilder->expr()->eq('c.CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR));
+            }
+            if ($typeField && $type) {
+                $constraints[] = $queryBuilder->expr()->eq('c.list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR));
+            }
 
-                $output->writeln('');
+            $plugins = $queryBuilder
+                ->select(...$this->selectFields)
+                ->addSelectLiteral(join(',', $selectFieldsLiteral))
+                ->from($this->table, 'c')
+                ->join(
+                    'c',
+                    'pages',
+                    'p',
+                    $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('c.pid'))
+                )
+                ->where(...$constraints)
+                ->setMaxResults($this->limit)
+                ->execute()->fetchAll();
 
-                if (count($plugins)) {
-                    // Enhance results
-                    foreach ($plugins as &$plugin) {
-                        $site = $this->siteFinder->getSiteByPageId($plugin['pid']);
-                        $plugin['site'] = $site->getIdentifier();
-                        $plugin['url'] = $this->cObj->typolink_URL(array('parameter' => $plugin['pid']));
+            $output->writeln(sprintf('Listing %d items of list_type %s', count($plugins), $list_type));
+            $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
+            $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
+            $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
+            $output->writeln(sprintf('- %scluding past', $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
+
+            $output->writeln('');
+
+            if (count($plugins)) {
+                // Enhance results
+                foreach ($plugins as &$plugin) {
+                    $site = $this->siteFinder->getSiteByPageId($plugin['pid']);
+                    $plugin['site'] = $site->getIdentifier();
+                    $plugin['url'] = $this->cObj->typolink_URL(array('parameter' => $plugin['pid']));
+                    if ($CType === 'list') {
                         $plugin['switchableControllerActions'] = str_replace('&gt;', '>', $plugin['switchableControllerActions']);
-                        if (isset($plugin['starttime'])) {
-                            $plugin['starttime'] = $plugin['starttime'] ? date('Y-m-d H:i', $plugin['starttime']) : '';
-                        }
-                        if (isset($plugin['endtime'])) {
-                            $plugin['endtime'] = $plugin['endtime'] ? date('Y-m-d H:i', $plugin['endtime']) : '';
-                        }
                     }
-
-                    $tableOutput = new Table($output);
-                    $tableOutput
-                        ->setHeaders(array_keys($plugins[0]))
-                        ->setRows($plugins);
-                    ;
-                    $tableOutput->render();
-                } else {
-                    $this->io->writeln('<warning>No records found ;-(</>');
+                    if (isset($plugin['starttime'])) {
+                        $plugin['starttime'] = $plugin['starttime'] ? date('Y-m-d H:i', $plugin['starttime']) : '';
+                    }
+                    if (isset($plugin['endtime'])) {
+                        $plugin['endtime'] = $plugin['endtime'] ? date('Y-m-d H:i', $plugin['endtime']) : '';
+                    }
                 }
 
-                // $question = new ConfirmationQuestion(
-                //     'Continue with this action? (Y/n) ',
-                //     true,
-                //     '/^(y|j)/i'
-                // );
-            } while (0 && $this->helper->ask($input, $output, $question));
-        } else {
-            // not implemented yet
-        }
+                $tableOutput = new Table($output);
+                $tableOutput
+                    ->setHeaders(array_keys($plugins[0]))
+                    ->setRows($plugins);
+                ;
+                $tableOutput->render();
+            } else {
+                $this->io->writeln('<warning>No records found ;-(</>');
+            }
+
+            // $question = new ConfirmationQuestion(
+            //     'Continue with this action? (Y/n) ',
+            //     true,
+            //     '/^(y|j)/i'
+            // );
+        } while (0 && $this->helper->ask($input, $output, $question));
 
         // $sites = $siteFinder->getAllSites();
         // if (count($sites) > 1) {
