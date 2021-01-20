@@ -145,6 +145,7 @@ class CeBrowserCommand extends AbstractBrowserCommand
             if ($CType === 'list' && empty($list_type)) {
                 $this->selectFields[] = 'list_type';
             }
+            $this->selectFields[] = 'header';
             if ($this->isWithRestriction('deleted') === false) {
                 $this->selectFields[] = $GLOBALS['TCA'][$this->table]['ctrl']['delete'];
             }
