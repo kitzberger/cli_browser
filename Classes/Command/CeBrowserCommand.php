@@ -188,7 +188,7 @@ class CeBrowserCommand extends AbstractBrowserCommand
         if ($CType) {
             $constraints[] = $queryBuilder->expr()->eq('c.CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR));
         }
-        if ($typeField && $type) {
+        if ($CType === 'list' && $list_type) {
             $constraints[] = $queryBuilder->expr()->eq('c.list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR));
         }
 
@@ -205,7 +205,7 @@ class CeBrowserCommand extends AbstractBrowserCommand
             ->where(...$constraints)
             ->setMaxResults($this->limit);
 
-        if ($CType === 'list' && $list_tye) {
+        if ($CType === 'list' && $list_type) {
             $output->writeln(sprintf('Listing chunks of %d items of list_type %s', $this->limit, $list_type));
         } else {
             $output->writeln(sprintf('Listing chunks of %d items of CType %s', $this->limit, $CType));
