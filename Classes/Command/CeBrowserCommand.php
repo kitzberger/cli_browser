@@ -195,18 +195,22 @@ class CeBrowserCommand extends AbstractBrowserCommand
             ->where(...$constraints)
             ->setMaxResults($this->limit);
 
+        if ($CType === 'list' && $list_tye) {
+            $output->writeln(sprintf('Listing chunks of %d items of list_type %s', $this->limit, $list_type));
+        } else {
+            $output->writeln(sprintf('Listing chunks of %d items of CType %s', $this->limit, $CType));
+        }
+        $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
+        $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
+        $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
+        $output->writeln(sprintf('- %scluding past', $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
+
+        $output->writeln('');
+
         $offset = 0;
 
         do {
             $contents = $query->setFirstResult($offset)->execute()->fetchAll();
-
-            $output->writeln(sprintf('Listing %d items of list_type %s', count($contents), $list_type));
-            $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
-            $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
-            $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
-            $output->writeln(sprintf('- %scluding past', $this->isWithRestriction('endtime')   ? 'ex' : 'in'));
-
-            $output->writeln('');
 
             if (count($contents)) {
                 // Enhance results

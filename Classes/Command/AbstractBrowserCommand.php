@@ -150,10 +150,10 @@ abstract class AbstractBrowserCommand extends Command
 
         $this->selectFields = $input->getOption('columns');
 
-        $this->restrictions['deleted']  = !$input->getOption('with-deleted');
-        $this->restrictions['disabled']  = $input->getOption('without-hidden');
-        $this->restrictions['starttime'] = $input->getOption('without-future');
-        $this->restrictions['endtime']   = $input->getOption('without-past');
+        $this->restrictionFields['deleted']  = !$input->getOption('with-deleted');
+        $this->restrictionFields['disabled']  = $input->getOption('without-hidden');
+        $this->restrictionFields['starttime'] = $input->getOption('without-future');
+        $this->restrictionFields['endtime']   = $input->getOption('without-past');
 
         $this->limit = (int)$input->getOption('limit');
     }
@@ -265,7 +265,7 @@ abstract class AbstractBrowserCommand extends Command
      */
     protected function isWithRestriction($restriction)
     {
-        if ($this->restrictions[$restriction]) {
+        if ($this->restrictionFields[$restriction]) {
             // restricted to given restriction
             if ($restriction === 'deleted' && isset($GLOBALS['TCA'][$this->table]['ctrl']['delete'])) {
                 return true;
