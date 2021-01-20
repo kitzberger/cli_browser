@@ -184,31 +184,35 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         // Prefix each column with 'r.'
         $this->selectFields = preg_filter('/^/', 'r.', $this->selectFields);
 
+
+        $queryBuilder = $this->getQueryBuilder();
+        $queryBuilder->setRestrictions($restrictions);
+
+        $constraints = [
+            $queryBuilder->expr()->gt('r.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
+        ];
+
+        if ($typeField && $type) {
+            $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
+        }
+
+        $query = $queryBuilder
+            ->select(...$this->selectFields)
+            ->from($this->table, 'r')
+            ->join(
+                'r',
+                'pages',
+                'p',
+                $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('r.pid'))
+            )
+            ->where(...$constraints)
+            ->orderBy('r.' . $tstampField, 'DESC')
+            ->setMaxResults($this->limit);
+
+        $offset = 0;
+
         do {
-            $queryBuilder = $this->getQueryBuilder();
-            $queryBuilder->setRestrictions($restrictions);
-
-            $constraints = [
-                $queryBuilder->expr()->gt('r.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
-            ];
-
-            if ($typeField && $type) {
-                $constraints[] = $queryBuilder->expr()->eq('r.' . $typeField, $queryBuilder->createNamedParameter($type, \PDO::PARAM_STR));
-            }
-
-            $records = $queryBuilder
-                ->select(...$this->selectFields)
-                ->from($this->table, 'r')
-                ->join(
-                    'r',
-                    'pages',
-                    'p',
-                    $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('r.pid'))
-                )
-                ->where(...$constraints)
-                ->orderBy('r.' . $tstampField, 'DESC')
-                ->setMaxResults($this->limit)
-                ->execute()->fetchAll();
+            $records = $query->setFirstResult($offset)->execute()->fetchAll();
 
             if ($typeField && $type) {
                 $output->writeln(sprintf('Listing %d records of %s of type %s', count($records), $this->table, $type));
@@ -249,11 +253,11 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 $this->io->writeln('<warning>No records found ;-(</>');
             }
 
-            // $question = new ConfirmationQuestion(
-            //     'Continue with this action? (Y/n) ',
-            //     true,
-            //     '/^(y|j)/i'
-            // );
-        } while (0 && $helper->ask($input, $output, $question));
+            $question = new ConfirmationQuestion(
+                'Continue with this action? (Y/n) ',
+                true,
+                '/^(y|j)/i'
+            );
+        } while ($this->helper->ask($input, $output, $question) && $offset += $this->limit);
     }
 }

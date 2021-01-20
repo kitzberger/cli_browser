@@ -168,36 +168,39 @@ class CeBrowserCommand extends AbstractBrowserCommand
             $selectFieldsLiteral['switchableControllerActions'] = 'ExtractValue(`c`.`pi_flexform`, \'//T3FlexForms/data/sheet/language/field[@index="switchableControllerActions"]/value\') AS switchableControllerActions';
         }
 
+        $queryBuilder = $this->getQueryBuilder();
+        $queryBuilder->setRestrictions($restrictions);
+
+        $constraints = [
+            $queryBuilder->expr()->gt('c.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
+        ];
+
+        if ($CType) {
+            $constraints[] = $queryBuilder->expr()->eq('c.CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR));
+        }
+        if ($typeField && $type) {
+            $constraints[] = $queryBuilder->expr()->eq('c.list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR));
+        }
+
+        $query = $queryBuilder
+            ->select(...$this->selectFields)
+            ->addSelectLiteral(join(',', $selectFieldsLiteral))
+            ->from($this->table, 'c')
+            ->join(
+                'c',
+                'pages',
+                'p',
+                $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('c.pid'))
+            )
+            ->where(...$constraints)
+            ->setMaxResults($this->limit);
+
+        $offset = 0;
+
         do {
-            $queryBuilder = $this->getQueryBuilder();
-            $queryBuilder->setRestrictions($restrictions);
+            $contents = $query->setFirstResult($offset)->execute()->fetchAll();
 
-            $constraints = [
-                $queryBuilder->expr()->gt('c.pid', $queryBuilder->createNamedParameter(1, \PDO::PARAM_INT)),
-            ];
-
-            if ($CType) {
-                $constraints[] = $queryBuilder->expr()->eq('c.CType', $queryBuilder->createNamedParameter($CType, \PDO::PARAM_STR));
-            }
-            if ($typeField && $type) {
-                $constraints[] = $queryBuilder->expr()->eq('c.list_type', $queryBuilder->createNamedParameter($list_type, \PDO::PARAM_STR));
-            }
-
-            $plugins = $queryBuilder
-                ->select(...$this->selectFields)
-                ->addSelectLiteral(join(',', $selectFieldsLiteral))
-                ->from($this->table, 'c')
-                ->join(
-                    'c',
-                    'pages',
-                    'p',
-                    $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('c.pid'))
-                )
-                ->where(...$constraints)
-                ->setMaxResults($this->limit)
-                ->execute()->fetchAll();
-
-            $output->writeln(sprintf('Listing %d items of list_type %s', count($plugins), $list_type));
+            $output->writeln(sprintf('Listing %d items of list_type %s', count($contents), $list_type));
             $output->writeln(sprintf('- %scluding deleted', $this->isWithRestriction('deleted')   ? 'ex' : 'in'));
             $output->writeln(sprintf('- %scluding disabled', $this->isWithRestriction('disabled')  ? 'ex' : 'in'));
             $output->writeln(sprintf('- %scluding future', $this->isWithRestriction('starttime') ? 'ex' : 'in'));
@@ -205,39 +208,39 @@ class CeBrowserCommand extends AbstractBrowserCommand
 
             $output->writeln('');
 
-            if (count($plugins)) {
+            if (count($contents)) {
                 // Enhance results
-                foreach ($plugins as &$plugin) {
-                    $site = $this->siteFinder->getSiteByPageId($plugin['pid']);
-                    $plugin['site'] = $site->getIdentifier();
-                    $plugin['url'] = $this->cObj->typolink_URL(array('parameter' => $plugin['pid']));
+                foreach ($contents as &$content) {
+                    $site = $this->siteFinder->getSiteByPageId($content['pid']);
+                    $content['site'] = $site->getIdentifier();
+                    $content['url'] = $this->cObj->typolink_URL(array('parameter' => $content['pid']));
                     if ($CType === 'list') {
-                        $plugin['switchableControllerActions'] = str_replace('&gt;', '>', $plugin['switchableControllerActions']);
+                        $content['switchableControllerActions'] = str_replace('&gt;', '>', $content['switchableControllerActions']);
                     }
-                    if (isset($plugin['starttime'])) {
-                        $plugin['starttime'] = $plugin['starttime'] ? date('Y-m-d H:i', $plugin['starttime']) : '';
+                    if (isset($content['starttime'])) {
+                        $content['starttime'] = $content['starttime'] ? date('Y-m-d H:i', $content['starttime']) : '';
                     }
-                    if (isset($plugin['endtime'])) {
-                        $plugin['endtime'] = $plugin['endtime'] ? date('Y-m-d H:i', $plugin['endtime']) : '';
+                    if (isset($content['endtime'])) {
+                        $content['endtime'] = $content['endtime'] ? date('Y-m-d H:i', $content['endtime']) : '';
                     }
                 }
 
                 $tableOutput = new Table($output);
                 $tableOutput
-                    ->setHeaders(array_keys($plugins[0]))
-                    ->setRows($plugins);
+                    ->setHeaders(array_keys($contents[0]))
+                    ->setRows($contents);
                 ;
                 $tableOutput->render();
             } else {
                 $this->io->writeln('<warning>No records found ;-(</>');
             }
 
-            // $question = new ConfirmationQuestion(
-            //     'Continue with this action? (Y/n) ',
-            //     true,
-            //     '/^(y|j)/i'
-            // );
-        } while (0 && $this->helper->ask($input, $output, $question));
+            $question = new ConfirmationQuestion(
+                'Continue with this action? (Y/n) ',
+                true,
+                '/^(y|j)/i'
+            );
+        } while ($this->helper->ask($input, $output, $question) && $offset += $this->limit);
 
         // $sites = $siteFinder->getAllSites();
         // if (count($sites) > 1) {
