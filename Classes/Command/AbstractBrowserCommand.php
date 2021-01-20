@@ -124,6 +124,14 @@ abstract class AbstractBrowserCommand extends Command
             'Which columns should be display?',
             false
         );
+
+        $this->addOption(
+            'site',
+            null,
+            InputOption::VALUE_NONE,
+            'Render the site?',
+            null
+        );
     }
 
     /**
@@ -283,6 +291,16 @@ abstract class AbstractBrowserCommand extends Command
 
         // restriction not defined in TCA
         return null;
+    }
+
+    protected function determineSiteIdentifier($pid)
+    {
+        try {
+            $site = $this->siteFinder->getSiteByPageId($pid);
+            return $site->getIdentifier();
+        } catch (\Exception $e) {
+            return 'ERROR: ' . $e->getMessage();
+        }
     }
 
     protected function initializeTypoScriptFrontend($pageId)

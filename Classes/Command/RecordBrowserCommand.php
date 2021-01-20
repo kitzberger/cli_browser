@@ -94,6 +94,7 @@ class RecordBrowserCommand extends AbstractBrowserCommand
 
         $groupByPid  = $input->getOption('group-by-pid');
         $groupBySite = $input->getOption('group-by-site');
+        $renderSite  = $input->getOption('site');
 
         parent::initSelectFields();
 
@@ -213,6 +214,9 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                     }
                     if (isset($record['endtime'])) {
                         $record['endtime'] = $record['endtime'] ? date('Y-m-d H:i', $record['endtime']) : '';
+                    }
+                    if ($renderSite) {
+                        $record['site'] = $this->determineSiteIdentifier($record['pid']);
                     }
                 }
 

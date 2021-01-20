@@ -58,6 +58,14 @@ class CeBrowserCommand extends AbstractBrowserCommand
             null
         );
 
+        $this->addOption(
+            'url',
+            null,
+            InputOption::VALUE_NONE,
+            'Render the URL?',
+            null
+        );
+
         parent::configure();
     }
 
@@ -80,6 +88,8 @@ class CeBrowserCommand extends AbstractBrowserCommand
         // ************************
         $CType = $input->getOption('CType');
         $list_type = $input->getOption('list_type');
+        $renderUrl = $input->getOption('url');
+        $renderSite = $input->getOption('site');
 
         if (empty($CType)) {
             $CType = $this->askForType(null);
@@ -215,9 +225,12 @@ class CeBrowserCommand extends AbstractBrowserCommand
             if (count($contents)) {
                 // Enhance results
                 foreach ($contents as &$content) {
-                    $site = $this->siteFinder->getSiteByPageId($content['pid']);
-                    $content['site'] = $site->getIdentifier();
-                    $content['url'] = $this->cObj->typolink_URL(array('parameter' => $content['pid']));
+                    if ($renderSite) {
+                        $content['site'] = $this->determineSiteIdentifier($content['pid']);
+                    }
+                    if ($renderUrl) {
+                        $content['url'] = $this->cObj->typolink_URL(array('parameter' => $content['pid']));
+                    }
                     if ($CType === 'list') {
                         $content['switchableControllerActions'] = str_replace('&gt;', '>', $content['switchableControllerActions']);
                     }
