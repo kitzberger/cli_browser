@@ -76,6 +76,8 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         $this->table = $input->getOption('table');
         $type        = $input->getOption('type');
 
+        parent::initSelectFields();
+
         if (empty($this->table)) {
             $tables = $GLOBALS['TCA'];
 

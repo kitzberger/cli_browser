@@ -116,6 +116,14 @@ abstract class AbstractBrowserCommand extends Command
             'How many records?',
             5
         );
+
+        $this->addOption(
+            'columns',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'Which columns should be display?',
+            false
+        );
     }
 
     /**
@@ -140,12 +148,30 @@ abstract class AbstractBrowserCommand extends Command
         $this->siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
         $this->cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
 
+        $this->selectFields = $input->getOption('columns');
+
         $this->restrictions['deleted']  = !$input->getOption('with-deleted');
         $this->restrictions['disabled']  = $input->getOption('without-hidden');
         $this->restrictions['starttime'] = $input->getOption('without-future');
         $this->restrictions['endtime']   = $input->getOption('without-past');
 
         $this->limit = (int)$input->getOption('limit');
+    }
+
+    protected function initSelectFields()
+    {
+        if (is_null($this->selectFields)) {
+            $columns = $GLOBALS['TCA'][$this->table]['columns'];
+            $question = new ChoiceQuestion(
+                'Columns? ',
+                array_keys($columns),
+                0
+            );
+            $question->setMultiselect(true);
+            $this->selectFields = $this->ask($question);
+        } elseif ($this->selectFields !== false) {
+            $this->selectFields = GeneralUtility::trimExplode(',', $this->selectFields, true);
+        }
     }
 
     protected function ask($question)

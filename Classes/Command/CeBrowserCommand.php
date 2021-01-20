@@ -73,6 +73,8 @@ class CeBrowserCommand extends AbstractBrowserCommand
 
         $this->table = 'tt_content';
 
+        parent::initSelectFields();
+
         // ************************
         // 1. Determine parameters
         // ************************
