@@ -202,8 +202,18 @@ class CeBrowserCommand extends AbstractBrowserCommand
                 'p',
                 $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('c.pid'))
             )
-            ->where(...$constraints)
-            ->setMaxResults($this->limit);
+            ->where(...$constraints);
+
+        if ($this->orderBy) {
+            foreach ($this->orderBy as $column) {
+                $query->addOrderBy('c.' . $column[0], $column[1]);
+            }
+
+        }
+
+        if ($this->limit) {
+            $query->setMaxResults($this->limit);
+        }
 
         if ($CType === 'list' && $list_type) {
             $output->writeln(sprintf('Listing chunks of %d items of list_type %s', $this->limit, $list_type));

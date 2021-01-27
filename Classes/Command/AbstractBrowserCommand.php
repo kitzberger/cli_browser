@@ -77,6 +77,11 @@ abstract class AbstractBrowserCommand extends Command
     protected $limit = null;
 
     /**
+     * @var array
+     */
+    protected $orderBy = [];
+
+    /**
      * Configure the command by defining the name
      */
     protected function configure()
@@ -115,6 +120,14 @@ abstract class AbstractBrowserCommand extends Command
             InputOption::VALUE_REQUIRED,
             'How many records?',
             5
+        );
+
+        $this->addOption(
+            'order-by',
+            'o',
+            InputOption::VALUE_REQUIRED,
+            'Order by which column(s)?',
+            'tstamp:DESC'
         );
 
         $this->addOption(
@@ -164,6 +177,18 @@ abstract class AbstractBrowserCommand extends Command
         $this->restrictionFields['endtime']   = $input->getOption('without-past');
 
         $this->limit = (int)$input->getOption('limit');
+
+        $this->orderBy = GeneralUtility::trimExplode(',', $input->getOption('order-by'));
+        $this->orderBy = array_map(
+            function($item) {
+                list($columnName, $direction) = GeneralUtility::trimExplode(':', $item);
+                if (!in_array(strtoupper($direction), ['ASC', 'DESC'])) {
+                    $direction = 'ASC';
+                }
+                return [$columnName, $direction];
+            },
+            $this->orderBy
+        );
     }
 
     protected function initSelectFields()

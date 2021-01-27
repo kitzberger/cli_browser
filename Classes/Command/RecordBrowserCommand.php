@@ -287,9 +287,18 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 'p',
                 $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('r.pid'))
             )
-            ->where(...$constraints)
-            ->orderBy('r.' . $this->tstampField, 'DESC')
-            ->setMaxResults($this->limit);
+            ->where(...$constraints);
+
+        if ($this->orderBy) {
+            foreach ($this->orderBy as $column) {
+                $query->addOrderBy('r.' . $column[0], $column[1]);
+            }
+
+        }
+
+        if ($this->limit) {
+            $query->setMaxResults($this->limit);
+        }
 
         return $query;
     }
@@ -308,7 +317,7 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         }
 
         $query = $queryBuilder
-            ->selectLiteral('COUNT(*), r.pid')
+            ->selectLiteral('COUNT(*) AS count, r.pid')
             ->from($this->table, 'r')
             ->join(
                 'r',
@@ -316,9 +325,24 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 'p',
                 $queryBuilder->expr()->eq('p.uid', $queryBuilder->quoteIdentifier('r.pid'))
             )
-            ->where(...$constraints)
-            ->orderBy('r.' . $this->tstampField, 'DESC')
-            ->groupBy('r.pid');
+            ->where(...$constraints);
+
+        if ($this->orderBy) {
+            foreach ($this->orderBy as $column) {
+                if ($column[0] === 'count') {
+                    $query->addOrderBy($column[0], $column[1]);
+                } else {
+                    $query->addOrderBy('r.' . $column[0], $column[1]);
+                }
+            }
+
+        }
+
+        if ($this->limit) {
+            $query->setMaxResults($this->limit);
+        }
+
+        $query->groupBy('r.pid');
 
         return $query;
     }

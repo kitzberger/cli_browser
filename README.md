@@ -19,6 +19,7 @@ Options:
       --without-past         Include past records?
       --without-future       Include future records?
       --limit=LIMIT          How many records? [default: 5]
+      --order-by=ORDER-BY    Order by which column(s)? [default: "tstamp:DESC"]
       --columns[=COLUMNS]    Which columns should be display?
 ```
 
@@ -37,6 +38,7 @@ Options:
       --without-past       Include past records?
       --without-future     Include future records?
       --limit=LIMIT        How many records? [default: 5]
+      --order-by=ORDER-BY  Order by which column(s)? [default: "tstamp:DESC"]
       --columns[=COLUMNS]  Which columns should be display?
 ```
 
