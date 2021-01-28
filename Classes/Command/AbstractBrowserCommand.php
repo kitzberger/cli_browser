@@ -169,7 +169,8 @@ abstract class AbstractBrowserCommand extends Command
         $this->siteFinder = GeneralUtility::makeInstance(SiteFinder::class);
         $this->cObj = GeneralUtility::makeInstance(ContentObjectRenderer::class);
 
-        $this->selectFields = $input->getOption('columns');
+        $this->selectFields          = $input->getOption('columns');
+        $this->renderingInstructions = $input->getOption('columns');
 
         $this->restrictionFields['deleted']  = !$input->getOption('with-deleted');
         $this->restrictionFields['disabled']  = $input->getOption('without-hidden');
@@ -203,7 +204,28 @@ abstract class AbstractBrowserCommand extends Command
             $question->setMultiselect(true);
             $this->selectFields = $this->ask($question);
         } elseif ($this->selectFields !== false) {
-            $this->selectFields = GeneralUtility::trimExplode(',', $this->selectFields, true);
+            $this->selectFields = array_map(
+                function($field) {
+                    return GeneralUtility::trimExplode(':', $field, true)[0];
+                },
+                GeneralUtility::trimExplode(',', $this->selectFields, true)
+            );
+        }
+    }
+
+    protected function initRenderingInstructions()
+    {
+        if ($this->renderingInstructions) {
+            $renderingInstructions = [];
+            $allColumns = GeneralUtility::trimExplode(',', $this->renderingInstructions, true);
+            foreach ($allColumns as &$column) {
+                $tmp = GeneralUtility::trimExplode(':', $column, true);
+                if (count($tmp) > 1) {
+                    $columnName = array_shift($tmp);
+                    $renderingInstructions[$columnName] = $tmp;
+                }
+            }
+            $this->renderingInstructions = $renderingInstructions;
         }
     }
 

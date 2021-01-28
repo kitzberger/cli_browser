@@ -97,6 +97,7 @@ class RecordBrowserCommand extends AbstractBrowserCommand
         $renderSite  = $input->getOption('site');
 
         parent::initSelectFields();
+        parent::initRenderingInstructions();
 
         if (empty($this->table)) {
             $tables = $GLOBALS['TCA'];
@@ -217,6 +218,16 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                     }
                     if ($renderSite) {
                         $record['site'] = $this->determineSiteIdentifier($record['pid']);
+                    }
+                    foreach ($this->renderingInstructions as $columnName => $renderingInstruction) {
+                        $renderType = $renderingInstruction[0];
+                        if (is_numeric($renderType)) {
+                            $column = $record[$columnName];
+                            $column = preg_replace('/\s+/S', " ", $column); // remove line breaks
+                            $record[$columnName] = mb_substr($column, 0, (int)$renderType);
+                        } else {
+                            // todo: implement other render types
+                        }
                     }
                 }
 

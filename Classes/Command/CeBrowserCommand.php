@@ -82,6 +82,7 @@ class CeBrowserCommand extends AbstractBrowserCommand
         $this->table = 'tt_content';
 
         parent::initSelectFields();
+        parent::initRenderingInstructions();
 
         // ************************
         // 1. Determine parameters
@@ -249,6 +250,16 @@ class CeBrowserCommand extends AbstractBrowserCommand
                     }
                     if (isset($content['endtime'])) {
                         $content['endtime'] = $content['endtime'] ? date('Y-m-d H:i', $content['endtime']) : '';
+                    }
+                    foreach ($this->renderingInstructions as $columnName => $renderingInstruction) {
+                        $renderType = $renderingInstruction[0];
+                        if (is_numeric($renderType)) {
+                            $column = $content[$columnName];
+                            $column = preg_replace('/\s+/S', " ", $column); // remove line breaks
+                            $content[$columnName] = mb_substr($column, 0, (int)$renderType);
+                        } else {
+                            // todo: implement other render types
+                        }
                     }
                 }
 

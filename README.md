@@ -77,3 +77,13 @@ In case you want to exclude hidden or timed records from your search use the fol
 ```
 bin/typo3 database:browse-records --table tx_news_domain_model_news --limit 5 --without-hidden --without-future --without-past
 ```
+
+### Example 5: specify columns
+
+In case you're not satisfied with the printed table and its columns, you can specify the columns with the option `--columns` to your needs.
+
+For columns that contain too much text and disturb the nice ascii table, you can prove a maximum length.
+
+```
+bin/typo3 database:browse-records --table tx_news_domain_model_news --columns=uid,path_segment,title:40
+```
