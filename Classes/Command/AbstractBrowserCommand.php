@@ -215,8 +215,9 @@ abstract class AbstractBrowserCommand extends Command
 
     protected function initRenderingInstructions()
     {
+        $renderingInstructions = [];
+
         if ($this->renderingInstructions) {
-            $renderingInstructions = [];
             $allColumns = GeneralUtility::trimExplode(',', $this->renderingInstructions, true);
             foreach ($allColumns as &$column) {
                 $tmp = GeneralUtility::trimExplode(':', $column, true);
@@ -225,8 +226,9 @@ abstract class AbstractBrowserCommand extends Command
                     $renderingInstructions[$columnName] = $tmp;
                 }
             }
-            $this->renderingInstructions = $renderingInstructions;
         }
+
+        $this->renderingInstructions = $renderingInstructions;
     }
 
     protected function ask($question)
