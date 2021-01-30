@@ -238,15 +238,21 @@ class RecordBrowserCommand extends AbstractBrowserCommand
                 ;
                 $tableOutput->render();
             } else {
-                $this->io->writeln('<warning>No records found ;-(</>');
+                $this->io->writeln('<comment>No records found ;-(</>');
             }
 
-            $question = new ConfirmationQuestion(
-                'Continue with this action? (Y/n) ',
-                true,
-                '/^(y|j)/i'
-            );
-        } while ($this->helper->ask($input, $output, $question) && $offset += $this->limit);
+            $offset += $this->limit; // increase offset by chunk size (limit)
+            if ($offset >= $total) {
+                $continue = false;
+            } else {
+                $question = new ConfirmationQuestion(
+                    sprintf('Print rows %d-%d of a total of %d rows? (Y/n) ', $offset+1, min($offset+$this->limit, $total), $total),
+                    true,
+                    '/^(y|j)/i'
+                );
+                $continue = $this->helper->ask($input, $output, $question);
+            }
+        } while ($continue);
     }
 
     protected function createQuery()
