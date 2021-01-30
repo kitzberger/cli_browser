@@ -119,7 +119,7 @@ abstract class AbstractBrowserCommand extends Command
             'l',
             InputOption::VALUE_REQUIRED,
             'How many records?',
-            5
+            20
         );
 
         $this->addOption(
