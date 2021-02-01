@@ -207,27 +207,11 @@ class RecordBrowserCommand extends AbstractBrowserCommand
             if (count($records)) {
                 // Enhance results
                 foreach ($records as &$record) {
-                    if ($record[$this->tstampField]) {
-                        $record[$this->tstampField] = date('Y-m-d H:i', $record[$this->tstampField]);
-                    }
-                    if (isset($record['starttime'])) {
-                        $record['starttime'] = $record['starttime'] ? date('Y-m-d H:i', $record['starttime']) : '';
-                    }
-                    if (isset($record['endtime'])) {
-                        $record['endtime'] = $record['endtime'] ? date('Y-m-d H:i', $record['endtime']) : '';
-                    }
                     if ($renderSite) {
                         $record['site'] = $this->determineSiteIdentifier($record['pid']);
                     }
                     foreach ($this->renderingInstructions as $columnName => $renderingInstruction) {
-                        $renderType = $renderingInstruction[0];
-                        if (is_numeric($renderType)) {
-                            $column = $record[$columnName];
-                            $column = preg_replace('/\s+/S', " ", $column); // remove line breaks
-                            $record[$columnName] = mb_substr($column, 0, (int)$renderType);
-                        } else {
-                            // todo: implement other render types
-                        }
+                        $record[$columnName] = $this->renderColumn($record[$columnName], $renderingInstruction);
                     }
                 }
 

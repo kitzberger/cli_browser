@@ -80,10 +80,11 @@ bin/typo3 database:browse-records --table tx_news_domain_model_news --limit 5 --
 
 ### Example 5: specify columns
 
-In case you're not satisfied with the printed table and its columns, you can specify the columns with the option `--columns` to your needs.
+In case you're not satisfied with the printed table and its columns, you can specify the columns with the option `--columns` to your needs:
 
-For columns that contain too much text and disturb the nice ascii table, you can prove a maximum length.
+* For columns containing too much text and disturb the nice ascii table, you can prove a maximum length.
+* For columns containing unix timestamps, you can render them as `date` or `datetime` and even provide a custom format.
 
 ```
-bin/typo3 database:browse-records --table tx_news_domain_model_news --columns=uid,path_segment,title:40
+bin/typo3 database:browse-records --table tx_news_domain_model_news --columns="uid,path_segment,title:40,crdate:date,tstamp:datetime:Y-m-d H:i"
 ```

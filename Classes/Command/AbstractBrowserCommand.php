@@ -231,6 +231,23 @@ abstract class AbstractBrowserCommand extends Command
         $this->renderingInstructions = $renderingInstructions;
     }
 
+    protected function renderColumn($value, $renderingInstruction)
+    {
+        $renderType = $renderingInstruction[0];
+        if (is_numeric($renderType)) {
+            $value = preg_replace('/\s+/S', " ", $value); // remove line breaks
+            return mb_substr($value, 0, (int)$renderType);
+        } elseif ($renderType === 'date') {
+            $format = $renderingInstruction[1] ?: 'Y-m-d';
+            return $value ? date($format, $value) : '';
+        } elseif ($renderType === 'datetime') {
+            $format = $renderingInstruction[1] ?: 'Y-m-d H:i';
+            return $value ? date($format, $value) : '';
+        } else {
+            // todo: implement other render types
+        }
+    }
+
     protected function ask($question)
     {
         return $this->helper->ask($this->input, $this->output, $question);
