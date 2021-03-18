@@ -1,17 +1,25 @@
 {
-	"name": "kitzberger/cli-browser",
-	"type": "typo3-cms-extension",
-	"description": "Browse for content elements and other records via CLI",
-	"homepage": "https://github.com/kitzberger/cli_browser",
-	"license": ["GPL-2.0+"],
-	"keywords": ["TYPO3 CMS"],
-	"require": {
-		"typo3/cms-core": "^9.5 || ^10.4 "
-	},
-	"autoload": {
-		"psr-4": {
-			"Kitzberger\\CliBrowser\\": "Classes/"
-		}
-	}
+    "name": "kitzberger/cli-browser",
+    "type": "typo3-cms-extension",
+    "description": "Browse for content elements and other records via CLI",
+    "homepage": "https://github.com/kitzberger/cli_browser",
+    "license": [
+        "GPL-2.0-or-later"
+    ],
+    "keywords": [
+        "TYPO3 CMS"
+    ],
+    "require": {
+        "typo3/cms-core": "^9.5 || ^10.4 "
+    },
+    "autoload": {
+        "psr-4": {
+            "Kitzberger\\CliBrowser\\": "Classes/"
+        }
+    },
+    "extra": {
+        "typo3/cms": {
+            "extension-key": "cli_browser"
+        }
+    }
 }
-
